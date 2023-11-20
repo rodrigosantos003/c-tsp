@@ -5,6 +5,6 @@ go:
 build:
 	gcc -o main main.c
 run:
-	./main
+	./tsp $(ARGS)
 clean:
 	rm -r main

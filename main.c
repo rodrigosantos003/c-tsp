@@ -4,10 +4,9 @@
 #include <time.h>
 #include <unistd.h>
 
-#define SIZE 5
-#define PROCESSES 5
+int matrixSize;
 
-int distances[SIZE][SIZE] = {
+int distances[5][5] = {
     {0, 23, 10, 4, 1},
     {23, 0, 9, 5, 4},
     {10, 9, 0, 8, 2},
@@ -28,23 +27,17 @@ void read_file(const char *fileName)
         exit(1);
     }
 
-    int size = 0;
-    fscanf(file, "%d", &size);
+    fscanf(file, "%d", &matrixSize);
 
-    for (int i = 0; i < size; i++)
+    for (int i = 0; i < matrixSize; i++)
     {
-        for (int j = 0; j < size; j++)
+        for (int j = 0; j < matrixSize; j++)
         {
             fscanf(file, "%d", &distances[i][j]);
         }
     }
 
     fclose(file);
-
-    // int num;
-    // fscanf(file, "%d", &num);
-    // printf("%d\n", num);
-    // fclose(file);
 }
 
 // Calcula a distância de um dado caminho
@@ -54,12 +47,12 @@ int calculateDistance(int *path)
 
     // printf("Caminho: %d %d %d %d %d \n", path[0], path[1], path[2], path[3], path[4]);
 
-    for (int i = 0; i < SIZE; i++)
+    for (int i = 0; i < matrixSize; i++)
     {
         int src = path[i];
         int dest = path[i + 1];
 
-        if (i == SIZE - 1)
+        if (i == matrixSize - 1)
             dest = path[0];
 
         totalDistance += distances[src][dest];
@@ -71,12 +64,12 @@ int calculateDistance(int *path)
 // Troca os pontos do caminho
 void elementSwitch(int *orginalPath)
 {
-    int pos1 = rand() % SIZE;
+    int pos1 = rand() % matrixSize;
     int pos2;
 
     do
     {
-        pos2 = rand() % SIZE;
+        pos2 = rand() % matrixSize;
     } while (pos2 == pos1);
 
     int temp;
@@ -86,16 +79,24 @@ void elementSwitch(int *orginalPath)
     orginalPath[pos2] = temp;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    // Obtém os argumentos do comnado executado
+    const int TEST_FILE = argv[1];
+    const int PROCESSES = argv[2];
+    const int TIME = argv[3];
+
+    read_file(TEST_FILE);
+
+    // Inicializa um caminho aleatório
     srand(time(NULL));
 
-    int generatedNumbers[SIZE];
+    int generatedNumbers[matrixSize];
     int count = 0;
 
-    while (count < SIZE)
+    while (count < matrixSize)
     {
-        int num = rand() % SIZE;
+        int num = rand() % matrixSize;
         int repeated = 0;
 
         // Verifica se o número já foi gerado antes
@@ -115,6 +116,7 @@ int main()
         }
     }
 
+    // Executa o algoritmo em cada processo
     for (int i = 0; i < PROCESSES; i++)
     {
         if (fork() == 0)
