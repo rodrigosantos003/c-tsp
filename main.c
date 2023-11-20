@@ -7,25 +7,6 @@
 #define SIZE 5
 #define PROCESSES 5
 
-void read_file(const char *fileName)
-{
-    FILE *ptr;
-    char filePath[100];                             // Define a reasonable size for the file path
-    sprintf(filePath, "./tsp_testes/%s", fileName); // Construct the file path
-
-    ptr = fopen(filePath, "r");
-    if (ptr == NULL)
-    {
-        printf("Error opening file!\n");
-        exit(1);
-    }
-
-    int num;
-    fscanf(ptr, "%d", &num);
-    printf("%d\n", num);
-    fclose(ptr);
-}
-
 int distances[SIZE][SIZE] = {
     {0, 23, 10, 4, 1},
     {23, 0, 9, 5, 4},
@@ -33,6 +14,40 @@ int distances[SIZE][SIZE] = {
     {4, 5, 8, 0, 11},
     {1, 4, 2, 11, 0}};
 
+// Lê o ficheiro e inicializa a matriz
+void read_file(const char *fileName)
+{
+    FILE *file;
+    char filePath[100];
+    sprintf(filePath, "./tsp_testes/%s", fileName);
+
+    file = fopen(filePath, "r");
+    if (file == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+
+    int size = 0;
+    fscanf(file, "%d", &size);
+
+    for (int i = 0; i < size; i++)
+    {
+        for (int j = 0; j < size; j++)
+        {
+            fscanf(file, "%d", &distances[i][j]);
+        }
+    }
+
+    fclose(file);
+
+    // int num;
+    // fscanf(file, "%d", &num);
+    // printf("%d\n", num);
+    // fclose(file);
+}
+
+// Calcula a distância de um dado caminho
 int calculateDistance(int *path)
 {
     int totalDistance = 0;
@@ -53,6 +68,7 @@ int calculateDistance(int *path)
     return totalDistance;
 }
 
+// Troca os pontos do caminho
 void elementSwitch(int *orginalPath)
 {
     int pos1 = rand() % SIZE;
