@@ -37,6 +37,12 @@ void read_file(const char *fileName) {
         }
     }
 
+    for (int i = 0; i < matrixSize; ++i) {
+        for (int j = 0; j < matrixSize; ++j) {
+            printf("%d ", distances[i][j]);
+        }
+    }
+
     fclose(file);
 }
 
