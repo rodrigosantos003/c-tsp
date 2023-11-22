@@ -4,35 +4,35 @@
 #include <time.h>
 #include <unistd.h>
 
+int **distances;
 int matrixSize;
 
-int distances[5][5] = {
-    {0, 23, 10, 4, 1},
-    {23, 0, 9, 5, 4},
-    {10, 9, 0, 8, 2},
-    {4, 5, 8, 0, 11},
-    {1, 4, 2, 11, 0}};
+// Função para liberar a memória alocada para a matriz
+void freeMatrix() {
+    for (int i = 0; i < matrixSize; ++i) {
+        free(distances[i]);
+    }
+    free(distances);
+}
 
 // Lê o ficheiro e inicializa a matriz
-void read_file(const char *fileName)
-{
+void read_file(const char *fileName) {
     FILE *file;
     char filePath[100];
     sprintf(filePath, "./tsp_testes/%s", fileName);
 
     file = fopen(filePath, "r");
-    if (file == NULL)
-    {
+    if (file == NULL) {
         printf("Error opening file!\n");
         exit(1);
     }
 
     fscanf(file, "%d", &matrixSize);
 
-    for (int i = 0; i < matrixSize; i++)
-    {
-        for (int j = 0; j < matrixSize; j++)
-        {
+    distances = (int **)malloc(matrixSize * sizeof(int *));
+    for (int i = 0; i < matrixSize; ++i) {
+        distances[i] = (int *)malloc(matrixSize * sizeof(int));
+        for (int j = 0; j < matrixSize; ++j) {
             fscanf(file, "%d", &distances[i][j]);
         }
     }
@@ -44,8 +44,6 @@ void read_file(const char *fileName)
 int calculateDistance(int *path)
 {
     int totalDistance = 0;
-
-    // printf("Caminho: %d %d %d %d %d \n", path[0], path[1], path[2], path[3], path[4]);
 
     for (int i = 0; i < matrixSize; i++)
     {
@@ -82,9 +80,9 @@ void elementSwitch(int *orginalPath)
 int main(int argc, char *argv[])
 {
     // Obtém os argumentos do comnado executado
-    const int TEST_FILE = argv[1];
-    const int PROCESSES = argv[2];
-    const int TIME = argv[3];
+    const char *TEST_FILE = argv[1];
+    const int PROCESSES = atoi(argv[2]);
+    const int TIME = atoi(argv[3]);
 
     read_file(TEST_FILE);
 
@@ -121,8 +119,10 @@ int main(int argc, char *argv[])
     {
         if (fork() == 0)
         {
+            //Calcula a distância do caminho inicial
             int total = calculateDistance(generatedNumbers);
             printf("Total inicial: %d\n", total);
+        
             for (int i = 0; i < 10; i++)
             {
                 elementSwitch(generatedNumbers);
@@ -134,8 +134,12 @@ int main(int argc, char *argv[])
             }
 
             printf("Maior total: %d\n", total);
+
+            exit(0);
         }
     }
+
+    freeMatrix();
 
     return 0;
 }
