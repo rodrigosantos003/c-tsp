@@ -2,27 +2,35 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 #include <unistd.h>
+#include <sys/mman.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 int **distances;
 int matrixSize;
 
 // Função para liberar a memória alocada para a matriz
-void freeMatrix() {
-    for (int i = 0; i < matrixSize; ++i) {
+void freeMatrix()
+{
+    for (int i = 0; i < matrixSize; ++i)
+    {
         free(distances[i]);
     }
     free(distances);
 }
 
 // Lê o ficheiro e inicializa a matriz
-void read_file(const char *fileName) {
+void read_file(const char *fileName)
+{
     FILE *file;
     char filePath[100];
     sprintf(filePath, "./tsp_testes/%s", fileName);
 
     file = fopen(filePath, "r");
-    if (file == NULL) {
+    if (file == NULL)
+    {
         printf("Error opening file!\n");
         exit(1);
     }
@@ -30,16 +38,12 @@ void read_file(const char *fileName) {
     fscanf(file, "%d", &matrixSize);
 
     distances = (int **)malloc(matrixSize * sizeof(int *));
-    for (int i = 0; i < matrixSize; ++i) {
+    for (int i = 0; i < matrixSize; ++i)
+    {
         distances[i] = (int *)malloc(matrixSize * sizeof(int));
-        for (int j = 0; j < matrixSize; ++j) {
+        for (int j = 0; j < matrixSize; ++j)
+        {
             fscanf(file, "%d", &distances[i][j]);
-        }
-    }
-
-    for (int i = 0; i < matrixSize; ++i) {
-        for (int j = 0; j < matrixSize; ++j) {
-            printf("%d ", distances[i][j]);
         }
     }
 
@@ -85,6 +89,13 @@ void elementSwitch(int *orginalPath)
 
 int main(int argc, char *argv[])
 {
+    if (argc != 4)
+    {
+        printf("%d", argc);
+        printf("ERRO: Número de argumentos inválido!");
+        exit(-1);
+    }
+
     // Obtém os argumentos do comnado executado
     const char *TEST_FILE = argv[1];
     const int PROCESSES = atoi(argv[2]);
@@ -92,8 +103,27 @@ int main(int argc, char *argv[])
 
     read_file(TEST_FILE);
 
+    struct BestResult
+    {
+        int distance;
+        int bestPath[matrixSize];
+        struct timeval executionTime;
+        int iterationsNeeded;
+    };
+
     // Inicializa um caminho aleatório
     srand(time(NULL));
+
+    struct timeval tvi, tvf, tv_res;
+    gettimeofday(&tvi, NULL);
+
+    // Memória partilhada
+    int size = sizeof(struct BestResult);
+    int protection = PROT_READ | PROT_WRITE;
+    int visibility = MAP_ANONYMOUS | MAP_SHARED;
+    void *shmem = mmap(NULL, size, protection, visibility, 0, 0);
+
+    struct BestResult *bestResult = (struct BestResult *)shmem;
 
     int generatedNumbers[matrixSize];
     int count = 0;
@@ -125,25 +155,51 @@ int main(int argc, char *argv[])
     {
         if (fork() == 0)
         {
-            //Calcula a distância do caminho inicial
+            // Calcula a distância do caminho inicial
             int total = calculateDistance(generatedNumbers);
-            printf("Total inicial: %d\n", total);
-        
-            for (int i = 0; i < 10; i++)
+
+            time_t startTime = time(NULL);
+            int iterations = 0;
+            while (1)
             {
+                iterations++;
                 elementSwitch(generatedNumbers);
                 int tempTotal = calculateDistance(generatedNumbers);
-                printf("Total nº %d: %d\n", i, tempTotal);
 
                 if (tempTotal < total)
+                {
+                    gettimeofday(&tvf, NULL);
+                    timersub(&tvf, &tvi, &tv_res);
+
                     total = tempTotal;
+                    bestResult->distance = total;
+                    bestResult->iterationsNeeded = iterations;
+                    bestResult->executionTime = tv_res;
+                    memcpy(bestResult->bestPath, generatedNumbers, matrixSize * sizeof(int));
+                }
+
+                time_t currentTime = time(NULL);
+                if ((currentTime - startTime) >= TIME)
+                    exit(0);
             }
-
-            printf("Maior total: %d\n", total);
-
-            exit(0);
         }
     }
+
+    // Aguarda os processos filhos terminarem
+    for (int i = 0; i < PROCESSES; i++)
+    {
+        wait(NULL);
+    }
+
+    printf("Best Distance: %d\n", bestResult->distance);
+    printf("Best Path: ");
+    for (int i = 0; i < matrixSize; i++)
+    {
+        printf("%d ", bestResult->bestPath[i]);
+    }
+    printf("Time: %0ld.%03ld ms\n", (long)bestResult->executionTime.tv_sec, (long)bestResult->executionTime.tv_usec / 1000);
+    printf("Iterations: %d\n", bestResult->iterationsNeeded);
+    printf("\n");
 
     freeMatrix();
 
