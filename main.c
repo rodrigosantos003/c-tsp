@@ -7,11 +7,13 @@
 #include <sys/mman.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <semaphore.h>
+#include <fcntl.h>
 
 int **distances;
 int matrixSize;
 
-// Função para liberar a memória alocada para a matriz
+// Liberta a memória alocada à matriz
 void freeMatrix()
 {
     for (int i = 0; i < matrixSize; ++i)
@@ -70,7 +72,7 @@ int calculateDistance(int *path)
 }
 
 // Troca os pontos do caminho
-void elementSwitch(int *orginalPath)
+void elementSwitch(int *originalPath)
 {
     int pos1 = rand() % matrixSize;
     int pos2;
@@ -82,13 +84,14 @@ void elementSwitch(int *orginalPath)
 
     int temp;
 
-    temp = orginalPath[pos1];
-    orginalPath[pos1] = orginalPath[pos2];
-    orginalPath[pos2] = temp;
+    temp = originalPath[pos1];
+    originalPath[pos1] = originalPath[pos2];
+    originalPath[pos2] = temp;
 }
 
 int main(int argc, char *argv[])
 {
+    /* LEITURA DE AEGUMENTOS */
     if (argc != 4)
     {
         printf("%d", argc);
@@ -111,12 +114,6 @@ int main(int argc, char *argv[])
         int iterationsNeeded;
     };
 
-    // Inicializa um caminho aleatório
-    srand(time(NULL));
-
-    struct timeval tvi, tvf, tv_res;
-    gettimeofday(&tvi, NULL);
-
     // Memória partilhada
     int size = sizeof(struct BestResult);
     int protection = PROT_READ | PROT_WRITE;
@@ -124,6 +121,9 @@ int main(int argc, char *argv[])
     void *shmem = mmap(NULL, size, protection, visibility, 0, 0);
 
     struct BestResult *bestResult = (struct BestResult *)shmem;
+
+    /* INICIALIZAÇÃO DE CAMINHO ALEATÓRIO */
+    srand(time(NULL));
 
     int generatedNumbers[matrixSize];
     int count = 0;
@@ -150,15 +150,27 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* AJ-PE NOS PROCESSOS*/
+    // Inicialização das estruturas de tempo
+    struct timeval tvi, tvf, tv_res;
+    gettimeofday(&tvi, NULL);
+
+    // Semáforo de acesso à memória partilhada
+    sem_unlink("memoryAccess");
+    sem_t *memoryAccess = sem_open("memoryAccess", O_CREAT, 0644, 1);
+
+    // Array para armazenar os ID's dos processos filhos
+    int childPIDs[PROCESSES];
+
     // Executa o algoritmo em cada processo
     for (int i = 0; i < PROCESSES; i++)
     {
-        if (fork() == 0)
+        childPIDs[i] = fork();
+        if (childPIDs[i] == 0)
         {
             // Calcula a distância do caminho inicial
             int total = calculateDistance(generatedNumbers);
 
-            time_t startTime = time(NULL);
             int iterations = 0;
             while (1)
             {
@@ -166,8 +178,11 @@ int main(int argc, char *argv[])
                 elementSwitch(generatedNumbers);
                 int tempTotal = calculateDistance(generatedNumbers);
 
+                // Melhor caminho encontrado
                 if (tempTotal < total)
                 {
+                    sem_wait(memoryAccess);
+
                     gettimeofday(&tvf, NULL);
                     timersub(&tvf, &tvi, &tv_res);
 
@@ -176,21 +191,21 @@ int main(int argc, char *argv[])
                     bestResult->iterationsNeeded = iterations;
                     bestResult->executionTime = tv_res;
                     memcpy(bestResult->bestPath, generatedNumbers, matrixSize * sizeof(int));
-                }
 
-                time_t currentTime = time(NULL);
-                if ((currentTime - startTime) >= TIME)
-                    exit(0);
+                    sem_post(memoryAccess);
+                }
             }
         }
     }
 
-    // Aguarda os processos filhos terminarem
-    for (int i = 0; i < PROCESSES; i++)
+    // Mata os filhos quando o tempo acaba
+    sleep(TIME);
+    for (int i = 0; i < sizeof(childPIDs) / sizeof(childPIDs[0]); i++)
     {
-        wait(NULL);
+        kill(childPIDs[i], SIGKILL);
     }
 
+    /* RESULTADOS */
     printf("Best Distance: %d\n", bestResult->distance);
     printf("Best Path: ");
     for (int i = 0; i < matrixSize; i++)
