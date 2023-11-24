@@ -10,17 +10,22 @@
 #include <semaphore.h>
 #include <fcntl.h>
 
-int **distances;
-int matrixSize = 50;
+#define MAX_SIZE 100
 
-int total;
+int **distances; // Matriz de distâncias
+int matrixSize;  // Tamanho da matriz
+
+int PROCESSES = 0;
+
+int timeOut = 0; // Tempo expirado
+int total;       // Melhor caminhos
 
 void *shmem;
 
 struct BestResult
 {
     int distance;
-    int *bestPath;
+    int bestPath[MAX_SIZE];
     struct timeval executionTime;
     int iterationsNeeded;
 };
@@ -85,10 +90,6 @@ int calculateDistance(int *path)
     return totalDistance;
 }
 
-void refreshTotal(int signal)
-{
-    total = bestResult->distance;
-}
 // Troca os pontos do caminho
 void elementSwitch(int *originalPath)
 {
@@ -107,10 +108,31 @@ void elementSwitch(int *originalPath)
     originalPath[pos2] = temp;
 }
 
+// Marca o tempo como expirado
+void handleTimer(int signal)
+{
+    timeOut = 1;
+}
+
+int *childPIDs; // PIDs dos processos filhos
+
+// Informa os filhos para atualizarem o melhor caminho
+void handleBestPath(int signal)
+{
+    for (int i = 0; i < PROCESSES; i++)
+    {
+        kill(childPIDs[i], SIGUSR2);
+    }
+}
+
+// Atualiza o melhor caminho
+void refreshTotal(int signal)
+{
+    total = bestResult->distance;
+}
+
 int main(int argc, char *argv[])
 {
-    signal(SIGUSR1, refreshTotal);
-
     /* LEITURA DE AEGUMENTOS */
     if (argc != 4)
     {
@@ -120,8 +142,15 @@ int main(int argc, char *argv[])
 
     // Obtém os argumentos do comando executado
     const char *TEST_FILE = argv[1];
-    const int PROCESSES = atoi(argv[2]);
+    PROCESSES = atoi(argv[2]);
     const int TIME = atoi(argv[3]);
+
+    /* DEFINIÇÂO DE SINAIS */
+    signal(SIGALRM, handleTimer);
+
+    signal(SIGUSR1, handleBestPath);
+
+    signal(SIGUSR2, refreshTotal);
 
     read_file(TEST_FILE);
 
@@ -132,8 +161,6 @@ int main(int argc, char *argv[])
     shmem = mmap(NULL, size, protection, visibility, 0, 0);
 
     bestResult = (struct BestResult *)shmem;
-
-    bestResult->bestPath = malloc(matrixSize * sizeof(int));
 
     /* INICIALIZAÇÃO DE CAMINHO ALEATÓRIO */
     srand(time(NULL));
@@ -173,7 +200,7 @@ int main(int argc, char *argv[])
     sem_t *memoryAccess = sem_open("memoryAccess", O_CREAT, 0644, 1);
 
     // Array para armazenar os ID's dos processos filhos
-    int childPIDs[PROCESSES];
+    childPIDs = (int *)malloc(PROCESSES * sizeof(int));
 
     // Executa o algoritmo em cada processo
     for (int i = 0; i < PROCESSES; i++)
@@ -184,8 +211,11 @@ int main(int argc, char *argv[])
             // Calcula a distância do caminho inicial
             total = calculateDistance(generatedNumbers);
 
+            // Inicia a contagem do tempo para terminar
+            alarm(TIME);
+
             int iterations = 0;
-            while (1)
+            while (!timeOut)
             {
                 iterations++;
                 elementSwitch(generatedNumbers);
@@ -194,11 +224,14 @@ int main(int argc, char *argv[])
                 // Melhor caminho encontrado
                 if (tempTotal < total)
                 {
+                    // Entra no semáforo
                     sem_wait(memoryAccess);
 
+                    // Obtém o tempo de execução
                     gettimeofday(&tvf, NULL);
                     timersub(&tvf, &tvi, &tv_res);
 
+                    // Atualiza os valores na memória partilhada
                     total = tempTotal;
                     bestResult->distance = total;
                     bestResult->iterationsNeeded = iterations;
@@ -209,17 +242,25 @@ int main(int argc, char *argv[])
                         bestResult->bestPath[i] = generatedNumbers[i];
                     }
 
+                    // Envia o sinal ao processo pai
+                    kill(getppid(), SIGUSR1);
+
+                    // Espera que o pai informe os restantes filhos
+                    pause();
+
+                    // Sai do semáforo
                     sem_post(memoryAccess);
                 }
             }
+
+            exit(0);
         }
     }
 
-    // Mata os filhos quando o tempo acaba
-    sleep(TIME);
+    // Espera que os filhos terminem
     for (int i = 0; i < sizeof(childPIDs) / sizeof(childPIDs[0]); i++)
     {
-        kill(childPIDs[i], SIGKILL);
+        wait(NULL);
     }
 
     /* RESULTADOS */
@@ -230,10 +271,13 @@ int main(int argc, char *argv[])
         printf("%d ", bestResult->bestPath[i]);
     }
     printf("\n");
-    printf("Time: %0ld.%03ld ms\n", (long)bestResult->executionTime.tv_sec, (long)bestResult->executionTime.tv_usec / 1000);
+    printf("Time: %0ld.%03ld s\n", (long)bestResult->executionTime.tv_sec, (long)bestResult->executionTime.tv_usec / 1000);
     printf("Iterations: %d\n", bestResult->iterationsNeeded);
 
+    // Liberta os espaços de memória alocados
+    sem_close(memoryAccess);
     freeMatrix();
+    free(childPIDs);
 
     return 0;
 }

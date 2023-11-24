@@ -216,6 +216,7 @@ int main(int argc, char *argv[])
     printf("\n");
 
     freeMatrix();
+    sem_close(memoryAccess);
 
     return 0;
 }
