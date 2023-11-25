@@ -211,9 +211,9 @@ int main(int argc, char *argv[])
     {
         printf("%d ", bestResult->bestPath[i]);
     }
-    printf("Time: %0ld.%03ld ms\n", (long)bestResult->executionTime.tv_sec, (long)bestResult->executionTime.tv_usec / 1000);
-    printf("Iterations: %d\n", bestResult->iterationsNeeded);
     printf("\n");
+    printf("Time: %0ld.%03ld s\n", (long)bestResult->executionTime.tv_sec, (long)bestResult->executionTime.tv_usec / 1000);
+    printf("Iterations: %d\n", bestResult->iterationsNeeded);
 
     freeMatrix();
     sem_close(memoryAccess);

@@ -17,8 +17,7 @@ int matrixSize;  // Tamanho da matriz
 
 int PROCESSES = 0;
 
-int timeOut = 0; // Tempo expirado
-int total;       // Melhor caminhos
+int total; // Melhor caminhos
 
 void *shmem;
 
@@ -108,12 +107,6 @@ void elementSwitch(int *originalPath)
     originalPath[pos2] = temp;
 }
 
-// Marca o tempo como expirado
-void handleTimer(int signal)
-{
-    timeOut = 1;
-}
-
 int *childPIDs; // PIDs dos processos filhos
 
 // Informa os filhos para atualizarem o melhor caminho
@@ -122,6 +115,15 @@ void handleBestPath(int signal)
     for (int i = 0; i < PROCESSES; i++)
     {
         kill(childPIDs[i], SIGUSR2);
+    }
+}
+
+// Mata os filhos quando o tempo termina
+void handleTimer(int signal)
+{
+    for (int i = 0; i < PROCESSES; i++)
+    {
+        kill(childPIDs[i], SIGKILL);
     }
 }
 
@@ -202,6 +204,9 @@ int main(int argc, char *argv[])
     // Array para armazenar os ID's dos processos filhos
     childPIDs = (int *)malloc(PROCESSES * sizeof(int));
 
+    // Inicia a contagem do tempo para terminar
+    alarm(TIME);
+
     // Executa o algoritmo em cada processo
     for (int i = 0; i < PROCESSES; i++)
     {
@@ -211,11 +216,8 @@ int main(int argc, char *argv[])
             // Calcula a distância do caminho inicial
             total = calculateDistance(generatedNumbers);
 
-            // Inicia a contagem do tempo para terminar
-            alarm(TIME);
-
             int iterations = 0;
-            while (!timeOut)
+            while (1)
             {
                 iterations++;
                 elementSwitch(generatedNumbers);
