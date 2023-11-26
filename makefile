@@ -1,8 +1,8 @@
 base:
-	gcc -o tsp base.c
+	gcc -o tsp base.c utilities.c
 
 advanced:
-	gcc -o tsp advanced.c
+	gcc -o tsp advanced.c utilities.c
 run:
 	./tsp
 clean:

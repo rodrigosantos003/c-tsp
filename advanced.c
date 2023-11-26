@@ -10,6 +10,8 @@
 #include <semaphore.h>
 #include <fcntl.h>
 
+#include "utilities.h"
+
 #define MAX_SIZE 100
 
 int **distances; // Matriz de distâncias
@@ -30,82 +32,6 @@ struct BestResult
 };
 
 struct BestResult *bestResult;
-
-// Liberta a memória alocada à matriz
-void freeMatrix()
-{
-    for (int i = 0; i < matrixSize; ++i)
-    {
-        free(distances[i]);
-    }
-    free(distances);
-}
-
-// Lê o ficheiro e inicializa a matriz
-void read_file(const char *fileName)
-{
-    FILE *file;
-    char filePath[100];
-    sprintf(filePath, "./tsp_testes/%s", fileName);
-
-    file = fopen(filePath, "r");
-    if (file == NULL)
-    {
-        printf("Error opening file!\n");
-        exit(1);
-    }
-
-    fscanf(file, "%d", &matrixSize);
-
-    distances = (int **)malloc(matrixSize * sizeof(int *));
-    for (int i = 0; i < matrixSize; ++i)
-    {
-        distances[i] = (int *)malloc(matrixSize * sizeof(int));
-        for (int j = 0; j < matrixSize; ++j)
-        {
-            fscanf(file, "%d", &distances[i][j]);
-        }
-    }
-
-    fclose(file);
-}
-
-// Calcula a distância de um dado caminho
-int calculateDistance(int *path)
-{
-    int totalDistance = 0;
-
-    for (int i = 0; i < matrixSize; i++)
-    {
-        int src = path[i];
-        int dest = path[i + 1];
-
-        if (i == matrixSize - 1)
-            dest = path[0];
-
-        totalDistance += distances[src][dest];
-    }
-
-    return totalDistance;
-}
-
-// Troca os pontos do caminho
-void elementSwitch(int *originalPath)
-{
-    int pos1 = rand() % matrixSize;
-    int pos2;
-
-    do
-    {
-        pos2 = rand() % matrixSize;
-    } while (pos2 == pos1);
-
-    int temp;
-
-    temp = originalPath[pos1];
-    originalPath[pos1] = originalPath[pos2];
-    originalPath[pos2] = temp;
-}
 
 int *childPIDs; // PIDs dos processos filhos
 
@@ -154,7 +80,7 @@ int main(int argc, char *argv[])
 
     signal(SIGUSR2, refreshTotal);
 
-    read_file(TEST_FILE);
+    readFile(TEST_FILE, &matrixSize, &distances);
 
     // Memória partilhada
     int size = sizeof(struct BestResult);
@@ -163,39 +89,6 @@ int main(int argc, char *argv[])
     shmem = mmap(NULL, size, protection, visibility, 0, 0);
 
     bestResult = (struct BestResult *)shmem;
-
-    /* INICIALIZAÇÃO DE CAMINHO ALEATÓRIO */
-    srand(time(NULL));
-
-    int generatedNumbers[matrixSize];
-    int count = 0;
-
-    while (count < matrixSize)
-    {
-        int num = rand() % matrixSize;
-        int repeated = 0;
-
-        // Verifica se o número já foi gerado antes
-        for (int i = 0; i < count; i++)
-        {
-            if (num == generatedNumbers[i])
-            {
-                repeated = 1;
-                break;
-            }
-        }
-
-        if (!repeated)
-        {
-            generatedNumbers[count] = num;
-            count++;
-        }
-    }
-
-    /* AJ-PE NOS PROCESSOS*/
-    // Inicialização das estruturas de tempo
-    struct timeval tvi, tvf, tv_res;
-    gettimeofday(&tvi, NULL);
 
     // Semáforo de acesso à memória partilhada
     sem_unlink("memoryAccess");
@@ -213,15 +106,24 @@ int main(int argc, char *argv[])
         childPIDs[i] = fork();
         if (childPIDs[i] == 0)
         {
+            /* INICIALIZAÇÃO DE CAMINHO ALEATÓRIO */
+            srand(getppid());
+
+            int generatedNumbers[matrixSize];
+            generateRandomPath(generatedNumbers, matrixSize);
+
+            struct timeval tvi, tvf, tv_res;
+            gettimeofday(&tvi, NULL);
+
             // Calcula a distância do caminho inicial
-            total = calculateDistance(generatedNumbers);
+            total = calculateDistance(generatedNumbers, distances, matrixSize);
 
             int iterations = 0;
             while (1)
             {
                 iterations++;
-                elementSwitch(generatedNumbers);
-                int tempTotal = calculateDistance(generatedNumbers);
+                elementRandomSwitch(generatedNumbers, matrixSize);
+                int tempTotal = calculateDistance(generatedNumbers, distances, matrixSize);
 
                 // Melhor caminho encontrado
                 if (tempTotal < total)
@@ -246,9 +148,6 @@ int main(int argc, char *argv[])
 
                     // Envia o sinal ao processo pai
                     kill(getppid(), SIGUSR1);
-
-                    // Espera que o pai informe os restantes filhos
-                    pause();
 
                     // Sai do semáforo
                     sem_post(memoryAccess);
@@ -278,7 +177,7 @@ int main(int argc, char *argv[])
 
     // Liberta os espaços de memória alocados
     sem_close(memoryAccess);
-    freeMatrix();
+    freeMatrix(distances, matrixSize);
     free(childPIDs);
 
     return 0;
