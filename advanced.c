@@ -23,14 +23,6 @@ int total; // Melhor caminhos
 
 void *shmem;
 
-struct BestResult
-{
-    int distance;
-    int bestPath[MAX_SIZE];
-    struct timeval executionTime;
-    int iterationsNeeded;
-};
-
 struct BestResult *bestResult;
 
 int *childPIDs; // PIDs dos processos filhos
@@ -44,7 +36,7 @@ void handleBestPath(int signal)
     }
 }
 
-// Mata os filhos quando o tempo termina
+// Encerra os filhos quando o tempo termina
 void handleTimer(int signal)
 {
     for (int i = 0; i < PROCESSES; i++)
@@ -64,8 +56,9 @@ int main(int argc, char *argv[])
     /* LEITURA DE AEGUMENTOS */
     if (argc != 4)
     {
-        printf("ERRO: Número de argumentos inválido!");
-        exit(-1);
+        printf("ERRO: Número de argumentos inválido!\n");
+        printf("Execução: ./tsp <test_file> <number_of_processes> <time_in_seconds>\n");
+        exit(EXIT_FAILURE);
     }
 
     // Obtém os argumentos do comando executado
@@ -112,6 +105,7 @@ int main(int argc, char *argv[])
             int generatedNumbers[matrixSize];
             generateRandomPath(generatedNumbers, matrixSize);
 
+            // Inicialização das estruturas de tempo
             struct timeval tvi, tvf, tv_res;
             gettimeofday(&tvi, NULL);
 
@@ -154,7 +148,7 @@ int main(int argc, char *argv[])
                 }
             }
 
-            exit(0);
+            exit(EXIT_SUCCESS);
         }
     }
 
@@ -164,20 +158,11 @@ int main(int argc, char *argv[])
         wait(NULL);
     }
 
-    /* RESULTADOS */
-    printf("Best Distance: %d\n", bestResult->distance);
-    printf("Best Path: ");
-    for (int i = 0; i < matrixSize; i++)
-    {
-        printf("%d ", bestResult->bestPath[i]);
-    }
-    printf("\n");
-    printf("Time: %0ld.%03ld s\n", (long)bestResult->executionTime.tv_sec, (long)bestResult->executionTime.tv_usec / 1000);
-    printf("Iterations: %d\n", bestResult->iterationsNeeded);
+    showResults(*bestResult, matrixSize);
 
     // Liberta os espaços de memória alocados
     sem_close(memoryAccess);
-    freeMatrix(distances, matrixSize);
+    freeMatrix(distances);
     free(childPIDs);
 
     return 0;

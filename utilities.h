@@ -1,9 +1,21 @@
-void freeMatrix(int** matrix, int size);
+#define MAX_SIZE 100
 
-void readFile(const char* fileName, int* matrixSize, int*** distances);
+struct BestResult
+{
+    int distance;
+    int bestPath[MAX_SIZE];
+    struct timeval executionTime;
+    int iterationsNeeded;
+};
 
-int calculateDistance(int* path, int** distances, int size);
+void freeMatrix(int **matrix);
 
-void elementRandomSwitch(int* originalPath, int size);
+void readFile(const char *fileName, int *matrixSize, int ***distances);
 
-void generateRandomPath(int* path, int size);
+int calculateDistance(int *path, int **distances, int size);
+
+void elementRandomSwitch(int *originalPath, int size);
+
+void generateRandomPath(int *path, int size);
+
+void showResults(struct BestResult bestResult, int size);

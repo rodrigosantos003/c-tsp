@@ -15,29 +15,37 @@
 int **distances;
 int matrixSize;
 
+int PROCESSES = 0;
+
+int *childPIDs; // PIDs dos processos filhos
+
+// Encerra os filhos quando o tempo termina
+void handleTimer(int signal)
+{
+    for (int i = 0; i < PROCESSES; i++)
+    {
+        kill(childPIDs[i], SIGKILL);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     /* LEITURA DE AEGUMENTOS */
     if (argc != 4)
     {
-        printf("ERRO: Número de argumentos inválido!");
-        exit(-1);
+        printf("ERRO: Número de argumentos inválido!\n");
+        printf("Execução: ./tsp <test_file> <number_of_processes> <time_in_seconds>\n");
+        exit(EXIT_FAILURE);
     }
 
     // Obtém os argumentos do comando executado
     const char *TEST_FILE = argv[1];
-    const int PROCESSES = atoi(argv[2]);
+    PROCESSES = atoi(argv[2]);
     const int TIME = atoi(argv[3]);
 
-    readFile(TEST_FILE, &matrixSize, &distances);
+    signal(SIGALRM, handleTimer);
 
-    struct BestResult
-    {
-        int distance;
-        int bestPath[matrixSize];
-        struct timeval executionTime;
-        int iterationsNeeded;
-    };
+    readFile(TEST_FILE, &matrixSize, &distances);
 
     // Memória partilhada
     int size = sizeof(struct BestResult);
@@ -48,14 +56,16 @@ int main(int argc, char *argv[])
     struct BestResult *bestResult = (struct BestResult *)shmem;
 
     /* AJ-PE NOS PROCESSOS*/
-    // Inicialização das estruturas de tempo
-    
+
     // Semáforo de acesso à memória partilhada
     sem_unlink("memoryAccess");
     sem_t *memoryAccess = sem_open("memoryAccess", O_CREAT, 0644, 1);
 
     // Array para armazenar os ID's dos processos filhos
-    int childPIDs[PROCESSES];
+    childPIDs = (int *)malloc(PROCESSES * sizeof(int));
+
+    // Inicia a contagem do tempo para terminar
+    alarm(TIME);
 
     // Executa o algoritmo em cada processo
     for (int i = 0; i < PROCESSES; i++)
@@ -69,6 +79,7 @@ int main(int argc, char *argv[])
             int generatedNumbers[matrixSize];
             generateRandomPath(generatedNumbers, matrixSize);
 
+            // Inicialização das estruturas de tempo
             struct timeval tvi, tvf, tv_res;
             gettimeofday(&tvi, NULL);
 
@@ -99,28 +110,20 @@ int main(int argc, char *argv[])
                     sem_post(memoryAccess);
                 }
             }
+
+            exit(EXIT_SUCCESS);
         }
     }
 
-    // Mata os filhos quando o tempo acaba
-    sleep(TIME);
+    // Espera que os filhos terminem
     for (int i = 0; i < sizeof(childPIDs) / sizeof(childPIDs[0]); i++)
     {
-        kill(childPIDs[i], SIGKILL);
+        wait(NULL);
     }
 
-    /* RESULTADOS */
-    printf("Best Distance: %d\n", bestResult->distance);
-    printf("Best Path: ");
-    for (int i = 0; i < matrixSize; i++)
-    {
-        printf("%d ", bestResult->bestPath[i]);
-    }
-    printf("\n");
-    printf("Time: %0ld.%03ld s\n", (long)bestResult->executionTime.tv_sec, (long)bestResult->executionTime.tv_usec);
-    printf("Iterations: %d\n", bestResult->iterationsNeeded);
+    showResults(*bestResult, matrixSize);
 
-    freeMatrix(distances, matrixSize);
+    freeMatrix(distances);
     sem_close(memoryAccess);
     return 0;
 }

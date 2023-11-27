@@ -2,43 +2,43 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <signal.h>
-#include <sys/wait.h>
-#include <semaphore.h>
-#include <fcntl.h>
+
+#include "utilities.h"
+
+#define MAX_SIZE 100
 
 // Liberta a memória alocada à matriz
-void freeMatrix(int **matrix, int size) {
-    for (int i = 0; i < size; ++i) {
+void freeMatrix(int **matrix)
+{
+    for (int i = 0; i < sizeof(matrix) / sizeof(matrix[0]); ++i)
+    {
         free(matrix[i]);
     }
     free(matrix);
 }
 
-
 // Lê o ficheiro e inicializa a matriz
-void readFile(const char *fileName, int* matrixSize, int ***distances)
+void readFile(const char *fileName, int *matrixSize, int ***distances)
 {
     FILE *file;
-    char filePath[100];
+    char filePath[MAX_SIZE];
     sprintf(filePath, "./tsp_testes/%s", fileName);
 
     file = fopen(filePath, "r");
     if (file == NULL)
     {
-        printf("Error opening file!\n");
-        exit(1);
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
     }
 
     fscanf(file, "%d", matrixSize);
 
     *distances = (int **)malloc(*matrixSize * sizeof(int *));
-    for (int i = 0; i < *matrixSize; ++i) {
+    for (int i = 0; i < *matrixSize; ++i)
+    {
         (*distances)[i] = (int *)malloc(*matrixSize * sizeof(int));
-        for (int j = 0; j < *matrixSize; ++j) {
+        for (int j = 0; j < *matrixSize; ++j)
+        {
             fscanf(file, "%d", &((*distances)[i][j]));
         }
     }
@@ -54,11 +54,7 @@ int calculateDistance(int *path, int **distances, int size)
     for (int i = 0; i < size; i++)
     {
         int src = path[i];
-        int dest = path[i + 1];
-
-        if (i == size - 1)
-            dest = path[0];
-
+        int dest = path[(i + 1) % size];
         totalDistance += distances[src][dest];
     }
 
@@ -76,15 +72,14 @@ void elementRandomSwitch(int *originalPath, int size)
         pos2 = rand() % size;
     } while (pos2 == pos1);
 
-    int temp;
-
-    temp = originalPath[pos1];
+    int temp = originalPath[pos1];
     originalPath[pos1] = originalPath[pos2];
     originalPath[pos2] = temp;
 }
 
-// Gera um caminho aleatorio
-void generateRandomPath(int* path, int size){
+// Gera um caminho aleatório
+void generateRandomPath(int *path, int size)
+{
     int count = 0;
 
     while (count < size)
@@ -92,7 +87,6 @@ void generateRandomPath(int* path, int size){
         int num = rand() % size;
         int repeated = 0;
 
-        // Verifica se o número já foi gerado antes
         for (int i = 0; i < count; i++)
         {
             if (num == path[i])
@@ -108,4 +102,21 @@ void generateRandomPath(int* path, int size){
             count++;
         }
     }
+}
+
+// Apresenta os resultados
+void showResults(struct BestResult bestResult, int size)
+{
+    printf("Best Distance: %d\n", bestResult.distance);
+    printf("Best Path: ");
+    for (int i = 0; i < size; i++)
+    {
+        printf("%d ", bestResult.bestPath[i]);
+    }
+    printf("\n");
+    if (bestResult.executionTime.tv_usec < 1000)
+        printf("Time: 0.%03ld ms\n", (long)bestResult.executionTime.tv_usec);
+    else
+        printf("Time: %0ld.%03ld s\n", (long)bestResult.executionTime.tv_sec, (long)bestResult.executionTime.tv_usec / 1000);
+    printf("Iterations: %d\n", bestResult.iterationsNeeded);
 }
