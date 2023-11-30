@@ -9,15 +9,18 @@
 #include <sys/wait.h>
 #include <semaphore.h>
 #include <fcntl.h>
+#include <limits.h>
 
 #include "utilities.h"
 
-int **distances;
-int matrixSize;
+int **distances; // Matriz de distâncias
+int matrixSize;  // Tamanho da matriz
 
-int PROCESSES = 0;
+int PROCESSES = 0; // Número de processos
 
-int *childPIDs; // PIDs dos processos filhos
+int total = INT_MAX;
+
+int *childPIDs; // Array para armazenar os PIDs dos filhos
 
 // Encerra os filhos quando o tempo termina
 void handleTimer(int signal)
@@ -43,17 +46,18 @@ int main(int argc, char *argv[])
     PROCESSES = atoi(argv[2]);
     const int TIME = atoi(argv[3]);
 
+    /*DEFINIÇÂO DE SINAIS*/
     signal(SIGALRM, handleTimer);
 
     readFile(TEST_FILE, &matrixSize, &distances);
 
-    // Memória partilhada
-    int size = sizeof(struct BestResult);
+    // Inicialização da memória partilhada
+    int size = sizeof(struct SharedMemory);
     int protection = PROT_READ | PROT_WRITE;
     int visibility = MAP_ANONYMOUS | MAP_SHARED;
     void *shmem = mmap(NULL, size, protection, visibility, 0, 0);
 
-    struct BestResult *bestResult = (struct BestResult *)shmem;
+    struct SharedMemory *sharedMemory = (struct SharedMemory *)shmem;
 
     /* AJ-PE NOS PROCESSOS*/
 
@@ -83,9 +87,6 @@ int main(int argc, char *argv[])
             struct timeval tvi, tvf, tv_res;
             gettimeofday(&tvi, NULL);
 
-            // Calcula a distância do caminho inicial
-            int total = calculateDistance(generatedNumbers, distances, matrixSize);
-
             int iterations = 0;
             while (1)
             {
@@ -102,10 +103,10 @@ int main(int argc, char *argv[])
                     timersub(&tvf, &tvi, &tv_res);
 
                     total = tempTotal;
-                    bestResult->distance = total;
-                    bestResult->iterationsNeeded = iterations;
-                    bestResult->executionTime = tv_res;
-                    memcpy(bestResult->bestPath, generatedNumbers, matrixSize * sizeof(int));
+                    sharedMemory->distance = total;
+                    sharedMemory->iterationsNeeded = iterations;
+                    sharedMemory->executionTime = tv_res;
+                    memcpy(sharedMemory->bestPath, generatedNumbers, matrixSize * sizeof(int));
 
                     sem_post(memoryAccess);
                 }
@@ -121,9 +122,11 @@ int main(int argc, char *argv[])
         wait(NULL);
     }
 
-    showResults(*bestResult, matrixSize);
+    showResults(*sharedMemory, matrixSize);
 
-    freeMatrix(distances);
     sem_close(memoryAccess);
+    freeMatrix(distances);
+    free(childPIDs);
+
     return 0;
 }

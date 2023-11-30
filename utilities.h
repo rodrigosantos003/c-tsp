@@ -1,6 +1,6 @@
 #define MAX_SIZE 100
 
-struct BestResult
+struct SharedMemory
 {
     int distance;
     int bestPath[MAX_SIZE];
@@ -18,4 +18,4 @@ void elementRandomSwitch(int *originalPath, int size);
 
 void generateRandomPath(int *path, int size);
 
-void showResults(struct BestResult bestResult, int size);
+void showResults(struct SharedMemory sharedMemory, int size);

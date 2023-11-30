@@ -105,18 +105,18 @@ void generateRandomPath(int *path, int size)
 }
 
 // Apresenta os resultados
-void showResults(struct BestResult bestResult, int size)
+void showResults(struct SharedMemory sharedMemory, int size)
 {
-    printf("Best Distance: %d\n", bestResult.distance);
+    printf("Best Distance: %d\n", sharedMemory.distance);
     printf("Best Path: ");
     for (int i = 0; i < size; i++)
     {
-        printf("%d ", bestResult.bestPath[i]);
+        printf("%d ", sharedMemory.bestPath[i]);
     }
     printf("\n");
-    if (bestResult.executionTime.tv_usec < 1000)
-        printf("Time: 0.%03ld ms\n", (long)bestResult.executionTime.tv_usec);
+    if (sharedMemory.executionTime.tv_usec < 1000)
+        printf("Time: 0.%03ld ms\n", (long)sharedMemory.executionTime.tv_usec);
     else
-        printf("Time: %0ld.%03ld s\n", (long)bestResult.executionTime.tv_sec, (long)bestResult.executionTime.tv_usec / 1000);
-    printf("Iterations: %d\n", bestResult.iterationsNeeded);
+        printf("Time: %0ld.%03ld s\n", (long)sharedMemory.executionTime.tv_sec, (long)sharedMemory.executionTime.tv_usec / 1000);
+    printf("Iterations: %d\n", sharedMemory.iterationsNeeded);
 }
