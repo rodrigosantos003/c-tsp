@@ -119,4 +119,5 @@ void showResults(struct SharedMemory sharedMemory, int size)
     else
         printf("Time: %0ld.%03ld s\n", (long)sharedMemory.executionTime.tv_sec, (long)sharedMemory.executionTime.tv_usec / 1000);
     printf("Iterations: %d\n", sharedMemory.iterationsNeeded);
+    printf("------------------------\n");
 }
